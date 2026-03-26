@@ -11,6 +11,8 @@ A full-stack weather reporting dashboard that displays hail and wind storm repor
 - Top 10 states by report count rankings
 - Searchable data tables showing recent reports
 - Automatic data refresh — loads YTD data on first run, refreshes the last 7 days on subsequent runs
+- Historic year comparison — dropdown to compare current YTD against any year from 2016 to last year, capped at today's month/day for fair comparison
+- Historical data is fetched on demand from NOAA SPC and cached in SQLite for future use
 
 ## Tech Stack
 
@@ -70,3 +72,4 @@ npm --workspace=server run start
 | GET    | /api/hail      | Hail reports (query: start, end, state, limit)    |
 | GET    | /api/wind      | Wind reports (query: start, end, state, limit)    |
 | POST   | /api/fetch     | Trigger manual data fetch (query: days or "ytd")  |
+| POST   | /api/fetch-historic | Fetch historical year data (query: year, 2016–2025) |
