@@ -109,6 +109,83 @@ export function getDaysYTD(): number {
   return Math.ceil((now.getTime() - jan1.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 }
 
+/**
+ * Fetch historical SPC data for a given year, up to the same month/day as today.
+ * e.g., if today is 03-26-2026 and year=2025, fetches 2025-01-01 through 2025-03-26.
+ */
+export async function fetchSPCDataForYear(year: number): Promise<{
+  hailCount: number;
+  windCount: number;
+  daysProcessed: number;
+}> {
+  const now = new Date();
+  const cutoffMonth = now.getMonth();
+  const cutoffDay = now.getDate();
+
+  const startDate = new Date(year, 0, 1);
+  const endDate = new Date(year, cutoffMonth, cutoffDay);
+
+  const totalDays = Math.ceil(
+    (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+  ) + 1;
+
+  let totalHail = 0;
+  let totalWind = 0;
+  let daysProcessed = 0;
+
+  const insertHail = db.prepare(`
+    INSERT OR IGNORE INTO hail_reports (date, time, size, location, county, state, lat, lon, comments)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertWind = db.prepare(`
+    INSERT OR IGNORE INTO wind_reports (date, time, speed, location, county, state, lat, lon, comments)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  for (let i = 0; i < totalDays; i++) {
+    const date = new Date(startDate);
+    date.setDate(date.getDate() + i);
+
+    const spcDate = formatDateForSPC(date);
+    const dbDate = formatDateForDB(date);
+    const url = `https://www.spc.noaa.gov/climo/reports/${spcDate}_rpts.csv`;
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.log(`  No data for ${dbDate} (${response.status})`);
+        continue;
+      }
+
+      const csvText = await response.text();
+      const { hailReports, windReports } = parseSPCCsv(csvText, dbDate);
+
+      db.prepare("DELETE FROM hail_reports WHERE date = ?").run(dbDate);
+      db.prepare("DELETE FROM wind_reports WHERE date = ?").run(dbDate);
+
+      const insertAll = db.transaction(() => {
+        for (const r of hailReports) {
+          insertHail.run(r.date, r.time, r.size, r.location, r.county, r.state, r.lat, r.lon, r.comments);
+        }
+        for (const r of windReports) {
+          insertWind.run(r.date, r.time, r.speed, r.location, r.county, r.state, r.lat, r.lon, r.comments);
+        }
+      });
+
+      insertAll();
+      totalHail += hailReports.length;
+      totalWind += windReports.length;
+      daysProcessed++;
+      console.log(`  ${dbDate}: ${hailReports.length} hail, ${windReports.length} wind reports`);
+    } catch (err) {
+      console.log(`  Error fetching ${dbDate}: ${err}`);
+    }
+  }
+
+  return { hailCount: totalHail, windCount: totalWind, daysProcessed };
+}
+
 export async function fetchSPCData(days: number = 30): Promise<{
   hailCount: number;
   windCount: number;

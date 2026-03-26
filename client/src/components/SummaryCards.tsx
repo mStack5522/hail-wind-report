@@ -22,18 +22,26 @@ export default function SummaryCards({ summary, loading, showWind }: Props) {
 
   if (!summary) return null;
 
+  const compare = summary.compare;
+
   const hailCards = [
     {
-      label: 'Hail Reports',
+      label: `Hail Reports${compare ? ` (${summary.year})` : ''}`,
       value: summary.totalHailReports.toLocaleString(),
+      compare: compare ? compare.totalHailReports.toLocaleString() : null,
+      compareLabel: compare ? `${compare.year}` : null,
       color: 'text-blue-600',
       bg: 'bg-blue-50',
     },
     {
-      label: 'Max Hail Size',
+      label: `Max Hail Size${compare ? ` (${summary.year})` : ''}`,
       value: summary.maxHailSize
         ? `${(summary.maxHailSize / 100).toFixed(2)}"`
         : 'N/A',
+      compare: compare?.maxHailSize
+        ? `${(compare.maxHailSize / 100).toFixed(2)}"`
+        : compare ? 'N/A' : null,
+      compareLabel: compare ? `${compare.year}` : null,
       color: 'text-purple-600',
       bg: 'bg-purple-50',
     },
@@ -41,14 +49,18 @@ export default function SummaryCards({ summary, loading, showWind }: Props) {
 
   const windCards = [
     {
-      label: 'Wind Reports',
+      label: `Wind Reports${compare ? ` (${summary.year})` : ''}`,
       value: summary.totalWindReports.toLocaleString(),
+      compare: compare ? compare.totalWindReports.toLocaleString() : null,
+      compareLabel: compare ? `${compare.year}` : null,
       color: 'text-green-600',
       bg: 'bg-green-50',
     },
     {
-      label: 'Max Wind Gust',
+      label: `Max Wind Gust${compare ? ` (${summary.year})` : ''}`,
       value: summary.maxWindSpeed ? `${summary.maxWindSpeed} mph` : 'N/A',
+      compare: compare?.maxWindSpeed ? `${compare.maxWindSpeed} mph` : compare ? 'N/A' : null,
+      compareLabel: compare ? `${compare.year}` : null,
       color: 'text-orange-600',
       bg: 'bg-orange-50',
     },
@@ -66,6 +78,11 @@ export default function SummaryCards({ summary, loading, showWind }: Props) {
         >
           <p className="text-sm text-gray-500 mb-1">{card.label}</p>
           <p className={`text-3xl font-bold ${card.color}`}>{card.value}</p>
+          {card.compare !== null && (
+            <p className="text-sm text-gray-400 mt-1">
+              {card.compareLabel}: <span className="font-semibold text-gray-600">{card.compare}</span>
+            </p>
+          )}
         </div>
       ))}
     </div>

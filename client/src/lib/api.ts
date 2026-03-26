@@ -36,7 +36,7 @@ export interface StateCount {
   count: number;
 }
 
-export interface Summary {
+export interface YearSummary {
   totalHailReports: number;
   totalWindReports: number;
   maxHailSize: number | null;
@@ -48,8 +48,19 @@ export interface Summary {
   topWindStates: StateCount[];
 }
 
-export async function fetchSummary(): Promise<Summary> {
-  const res = await fetch(`${BASE}/summary`);
+export interface Summary extends YearSummary {
+  year: number;
+  compare: (YearSummary & { year: number }) | null;
+}
+
+export async function fetchSummary(compareYear?: number): Promise<Summary> {
+  const params = compareYear ? `?compareYear=${compareYear}` : '';
+  const res = await fetch(`${BASE}/summary${params}`);
+  return res.json();
+}
+
+export async function fetchHistoricData(year: number): Promise<any> {
+  const res = await fetch(`${BASE}/fetch-historic?year=${year}`, { method: 'POST' });
   return res.json();
 }
 

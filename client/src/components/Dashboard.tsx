@@ -3,6 +3,7 @@ import {
   fetchSummary,
   fetchHailReports,
   fetchWindReports,
+  fetchHistoricData,
   triggerFetch,
   Summary,
   HailReport,
@@ -13,6 +14,9 @@ import DailyChart from './DailyChart';
 import StateChart from './StateChart';
 import ReportTable from './ReportTable';
 
+const currentYear = new Date().getFullYear();
+const COMPARE_YEARS = Array.from({ length: 10 }, (_, i) => currentYear - 1 - i);
+
 export default function Dashboard() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [hailReports, setHailReports] = useState<HailReport[]>([]);
@@ -20,12 +24,14 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [showWind, setShowWind] = useState(false);
+  const [compareYear, setCompareYear] = useState<number | null>(null);
+  const [loadingHistoric, setLoadingHistoric] = useState(false);
 
-  const loadData = async () => {
+  const loadData = async (year?: number | null) => {
     setLoading(true);
     try {
       const [sum, hail, wind] = await Promise.all([
-        fetchSummary(),
+        fetchSummary(year ?? undefined),
         fetchHailReports({ limit: 500 }),
         fetchWindReports({ limit: 500 }),
       ]);
@@ -43,11 +49,28 @@ export default function Dashboard() {
     loadData();
   }, []);
 
+  const handleCompareYearChange = async (year: number | null) => {
+    setCompareYear(year);
+    if (year) {
+      setLoadingHistoric(true);
+      try {
+        await fetchHistoricData(year);
+        await loadData(year);
+      } catch (err) {
+        console.error('Failed to load historic data:', err);
+      } finally {
+        setLoadingHistoric(false);
+      }
+    } else {
+      await loadData(null);
+    }
+  };
+
   const handleFetchData = async () => {
     setFetching(true);
     try {
       await triggerFetch('ytd');
-      await loadData();
+      await loadData(compareYear);
     } catch (err) {
       console.error('Failed to fetch SPC data:', err);
     } finally {
@@ -64,13 +87,36 @@ export default function Dashboard() {
               Hail & Wind Report Dashboard
             </h1>
             <p className="text-sm text-gray-500">
-              NOAA Storm Prediction Center &mdash; {new Date().getFullYear()} Year to Date
+              NOAA Storm Prediction Center &mdash; {currentYear} Year to Date
+              {compareYear && <> vs {compareYear}</>}
               {summary?.dateRange.earliest && summary?.dateRange.latest && (
                 <> ({summary.dateRange.earliest} to {summary.dateRange.latest})</>
               )}
             </p>
           </div>
           <div className="flex items-center gap-4">
+            {/* Compare year dropdown */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-500">Compare:</label>
+              <select
+                value={compareYear ?? ''}
+                onChange={(e) =>
+                  handleCompareYearChange(e.target.value ? parseInt(e.target.value, 10) : null)
+                }
+                disabled={loadingHistoric}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                <option value="">None</option>
+                {COMPARE_YEARS.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+              {loadingHistoric && (
+                <span className="text-xs text-gray-400">Loading...</span>
+              )}
+            </div>
             {/* Wind toggle */}
             <button
               onClick={() => setShowWind(!showWind)}
@@ -113,22 +159,40 @@ export default function Dashboard() {
               hailByDate={summary.hailByDate}
               windByDate={summary.windByDate}
               showWind={showWind}
+              compare={summary.compare}
+              currentYear={summary.year}
             />
 
             <div className={`grid grid-cols-1 ${showWind ? 'md:grid-cols-2' : ''} gap-6 mb-6`}>
               <StateChart
-                title="Top States — Hail"
+                title={`Top States — Hail${summary.compare ? ` (${summary.year})` : ''}`}
                 data={summary.topHailStates}
                 color="#3b82f6"
               />
               {showWind && (
                 <StateChart
-                  title="Top States — Wind"
+                  title={`Top States — Wind${summary.compare ? ` (${summary.year})` : ''}`}
                   data={summary.topWindStates}
                   color="#22c55e"
                 />
               )}
             </div>
+            {summary.compare && (
+              <div className={`grid grid-cols-1 ${showWind ? 'md:grid-cols-2' : ''} gap-6 mb-6`}>
+                <StateChart
+                  title={`Top States — Hail (${summary.compare.year})`}
+                  data={summary.compare.topHailStates}
+                  color="#f4a261"
+                />
+                {showWind && (
+                  <StateChart
+                    title={`Top States — Wind (${summary.compare.year})`}
+                    data={summary.compare.topWindStates}
+                    color="#e9c46a"
+                  />
+                )}
+              </div>
+            )}
           </>
         )}
 
